@@ -191,11 +191,12 @@ app.get('/api/v1/quickcheck', async (c) => {
   </div>
 </body>
 </html>`;
-  return new Response(html, { headers: { 'Content-Type': 'text/html' }});
+  return new Response(html, { headers: { 'Content-Type': 'text/html; charset=UTF-8' }});
 });
 
 // Documentation Page (/docs)
 app.get('/docs', (c) => {
+  return new Response(docsTemplate, { headers: { 'Content-Type': 'text/html; charset=UTF-8' }});
 });
 
 // ============================================
