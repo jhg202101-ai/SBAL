@@ -3,10 +3,13 @@ import { cors } from 'hono/cors';
 import { v4 as uuidv4 } from 'uuid';
 import Stripe from 'stripe';
 import { getLocale, t, interpolate } from './i18n.js';
+import { i18nMiddleware } from './middleware/i18n.js';
 import landingPageTemplate from './templates/landing-page.js';
 import docsTemplate from './templates/docs.js';
 import quickcheckTemplate from './templates/quickcheck.js';
 import adminTemplate from './templates/admin.js';
+import successTemplate from './templates/success.js';
+import successRoute from './routes/success.js';
 const PRICE_MAP = {
   "SBAL Base": { "product_id": "prod_U3yYfofIlxCxBZ", "price_id": "price_1T5qbDI7EezoPqOFiz1SzRxn" },
   "SBAL Growth": { "product_id": "prod_U3Y3lmHbe4COQ", "price_id": "price_1T5qbEI7EezoPqOFHOXW7Jdq" },
@@ -14,6 +17,10 @@ const PRICE_MAP = {
 };
 const app = new Hono();
 app.use('*', cors());
+
+// i18n: inject locale and translation function into context
+i18nMiddleware(app);
+
 let stripeSingleton = null;
 function getStripe(env) {
   const secret = env.STRIPE_SECRET_KEY;
@@ -94,8 +101,9 @@ app.use('*', async (c, next) => {
 app.get('/', async (c) => {
   const accept = c.req.header('Accept') || '';
   if (accept.includes('text/html')) {
-    const locale = getLocale(c.req);
-    const html = landingPageTemplate(locale, (key, params) => t(locale, key, params));
+    const locale = c.get('locale');
+    const t = c.get('t');
+    const html = landingPageTemplate(locale, t);
     return new Response(html, { headers: { 'Content-Type': 'text/html; charset=UTF-8' } });
   }
   const checks = { status: 'ok', service: 'SBAL', timestamp: new Date().toISOString() };
@@ -132,12 +140,13 @@ app.get('/api/v1/quickcheck', async (c) => {
   }
   if (!checks.d1 || !checks.stripe) checks.status = 'degraded';
   checks.version = checks.version || '1.0';
-  const html = quickcheckTemplate(checks);
+  const html = quickcheckTemplate(checks, c.get('locale'), c.get('t'));
   return new Response(html, { headers: { 'Content-Type': 'text/html; charset=UTF-8' }});
 });
 app.get('/docs', (c) => {
-  const locale = getLocale(c.req);
-  const html = docsTemplate(locale, (key, params) => t(locale, key, params));
+  const locale = c.get('locale');
+  const t = c.get('t');
+  const html = docsTemplate(locale, t);
   return new Response(html, { headers: { 'Content-Type': 'text/html; charset=UTF-8' }});
 });
 app.post('/api/v1/checkout', async (c) => {
@@ -187,6 +196,7 @@ app.post('/api/v1/checkout', async (c) => {
     return c.json({ error: 'server_error', message: e.message }, 500);
   }
 });
+successRoute(app, getStripe);
 app.get('/admin', async (c) => {
   const db = c.env.DB;
   const customers = await db.prepare(`
@@ -197,7 +207,7 @@ app.get('/admin', async (c) => {
     { name: 'SBAL Growth', amount: '$299', link: PAYMENT_LINKS['SBAL Growth'].url },
     { name: 'SBAL Enterprise', amount: '$999', link: PAYMENT_LINKS['SBAL Enterprise'].url }
   ];
-  const html = adminTemplate(customers, tiers);
+  const html = adminTemplate(customers, tiers, c.get('locale'), c.get('t'));
   return new Response(html, { headers: { 'Content-Type': 'text/html; charset=UTF-8' }});
 });
 app.post('/admin/create-customer-and-link', async (c) => {
@@ -482,133 +492,6 @@ app.post('/checkout', async (c) => {
   } catch (e) {
     console.error('POST /api/v1/checkout error:', e);
     return c.json({ error: 'server_error', message: e.message }, 500);
-  }
-});
-app.get('/success', async (c) => {
-  const { session_id } = c.req.query();
-  const locale = getLocale(c.req);
-  const missingSessionTitle = locale === 'zh-TW' ? '缺少 session ID' : 'Missing session ID';
-  const missingSessionMsg = locale === 'zh-TW' ? '請聯繫支援團隊' : 'Please contact support if this problem persists.';
-  const pendingTitle = t(locale, 'pending.title');
-  const pendingMsg = t(locale, 'pending.message');
-  const pendingCloseHint = t(locale, 'pending.closeHint');
-  const pendingBackHome = t(locale, 'pending.backToHome');
-  const finalizingTitle = t(locale, 'finalizing.title');
-  const finalizingMsg = t(locale, 'finalizing.message');
-  const finalizingWaitHint = t(locale, 'finalizing.waitHint');
-  const finalizingRefresh = t(locale, 'finalizing.refresh');
-  const successTitle = t(locale, 'success.title');
-  const successWelcome = (email) => t(locale, 'success.welcome', { email });
-  const successApiKeyLabel = t(locale, 'success.apiKeyLabel');
-  const successApiKeyHint = t(locale, 'success.apiKeyHint');
-  const successReadDocs = t(locale, 'success.readDocs');
-  const successBackHome = t(locale, 'success.backHome');
-  const successNeedHelp = t(locale, 'success.needHelp');
-  if (!session_id) {
-    return c.html(`<!DOCTYPE html>
-<html lang="${locale}">
-<head><title>Error</title></head>
-<body>
-  <h1>${missingSessionTitle}</h1>
-  <p>${missingSessionMsg}</p>
-</body>
-</html>`);
-  }
-  try {
-    const stripe = getStripe(c.env);
-    const session = await stripe.checkout.sessions.retrieve(session_id);
-    if (session.payment_status !== 'paid') {
-      const pendingHtml = `<!DOCTYPE html>
-<html lang="${locale}">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${pendingTitle}</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-yellow-50 min-h-screen flex items-center justify-center p-4">
-  <div class="bg-white rounded-xl shadow-lg max-w-lg w-full p-8 text-center">
-    <div class="text-5xl mb-4">⏳</div>
-    <h1 class="text-2xl font-bold text-gray-800 mb-2">${pendingTitle}</h1>
-    <p class="text-gray-600 mb-6">${pendingMsg}</p>
-    <p class="text-sm text-gray-500 mb-4">${pendingCloseHint}</p>
-    <a href="/" class="text-blue-600 hover:underline">${pendingBackHome}</a>
-  </div>
-</body>
-</html>`;
-      return new Response(pendingHtml, { headers: { 'Content-Type': 'text/html; charset=UTF-8' }});
-    }
-    const d1CustomerId = session.client_reference_id;
-    if (!d1CustomerId) {
-      throw new Error('Checkout session missing client_reference_id');
-    }
-    const db = c.env.DB;
-    const customer = await db.prepare(
-      'SELECT id, email, api_key, created_at FROM customers WHERE id = ?'
-    ).bind(d1CustomerId).first();
-    if (!customer) {
-      throw new Error('Customer not found in D1');
-    }
-    if (!customer.api_key) {
-      const processingHtml = `<!DOCTYPE html>
-<html lang="${locale}">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${finalizingTitle}</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-blue-50 min-h-screen flex items-center justify-center p-4">
-  <div class="bg-white rounded-xl shadow-lg max-w-lg w-full p-8 text-center">
-    <div class="text-5xl mb-4">🔐</div>
-    <h1 class="text-2xl font-bold text-gray-800 mb-2">${finalizingTitle}</h1>
-    <p class="text-gray-600 mb-6">${finalizingMsg}</p>
-    <p class="text-sm text-gray-500 mb-4">${finalizingWaitHint}</p>
-    <button onclick="location.reload()" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700">${finalizingRefresh}</button>
-  </div>
-</body>
-</html>`;
-      return new Response(processingHtml, { headers: { 'Content-Type': 'text/html; charset=UTF-8' }});
-    }
-    const html = `<!DOCTYPE html>
-<html lang="${locale}">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${successTitle}</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gradient-to-br from-green-50 to-blue-50 min-h-screen flex items-center justify-center p-4">
-  <div class="bg-white rounded-xl shadow-lg max-w-lg w-full p-8 text-center">
-    <div class="text-5xl mb-4">🎉</div>
-    <h1 class="text-3xl font-bold text-gray-800 mb-2">${successTitle}</h1>
-    <p class="text-gray-600 mb-6">${successWelcome(customer.email)}</p>
-    <div class="bg-gray-100 rounded-lg p-4 mb-6 text-left">
-      <p class="text-sm text-gray-500 mb-1">${successApiKeyLabel}</p>
-      <code class="text-lg font-mono break-all">${customer.api_key}</code>
-      <p class="text-xs text-gray-500 mt-2">${successApiKeyHint}</p>
-    </div>
-    <div class="space-y-3">
-      <a href="/docs" class="block bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700">${successReadDocs}</a>
-      <a href="/" class="block border border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-50">${successBackHome}</a>
-    </div>
-    <p class="mt-6 text-xs text-gray-400">${successNeedHelp}</p>
-  </div>
-</body>
-</html>`;
-    return new Response(html, { headers: { 'Content-Type': 'text/html; charset=UTF-8' }});
-  } catch (e) {
-    console.error('/success error:', e);
-    const errorTitle = locale === 'zh-TW' ? '無法驗證付款' : 'Unable to verify payment';
-    return c.html(`<!DOCTYPE html>
-<html>
-<head><title>${errorTitle}</title></head>
-<body>
-  <h1>${errorTitle}</h1>
-  <p>Error: ${e.message}</p>
-  <p>Please contact support.</p>
-</body>
-</html>`);
   }
 });
 export default app;

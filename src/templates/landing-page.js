@@ -13,11 +13,20 @@ export default function landingPageTemplate(locale, t) {
   <nav class="bg-white shadow-sm border-b">
     <div class="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
       <div class="text-2xl font-bold text-blue-600">SBAL</div>
-      <div class="space-x-6">
+      <div class="space-x-6 flex items-center">
         <a href="/" class="text-gray-600 hover:text-blue-600">${t('nav.home')}</a>
         <a href="/docs" class="text-gray-600 hover:text-blue-600">${t('nav.docs')}</a>
         <a href="/admin" class="text-gray-600 hover:text-blue-600">${t('nav.admin')}</a>
-        <button id="lang-btn" class="text-gray-600 hover:text-blue-600">${t('language')}</button>
+        <div class="relative">
+          <button id="lang-btn" class="text-gray-600 hover:text-blue-600 flex items-center gap-1">
+            ${locale === 'zh-TW' ? '🇨🇳 中文' : '🇺🇸 English'}
+            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+          </button>
+          <div id="lang-dropdown" class="absolute right-0 mt-2 w-32 bg-white border rounded shadow-lg hidden z-50">
+            <a href="#" data-lang="en" class="block px-4 py-2 hover:bg-gray-100 ${locale === 'en' ? 'bg-gray-100' : ''}">🇺🇸 English</a>
+            <a href="#" data-lang="zh-TW" class="block px-4 py-2 hover:bg-gray-100 ${locale === 'zh-TW' ? 'bg-gray-100' : ''}">🇨🇳 中文</a>
+          </div>
+        </div>
       </div>
     </div>
   </nav>
@@ -125,23 +134,41 @@ export default function landingPageTemplate(locale, t) {
   </div>
 
   <script>
-    // Language persistence: auto-switch based on localStorage
+    // Language switcher with dropdown + cookie persistence
     (function() {
-      const storedLang = localStorage.getItem('lang');
-      const urlParams = new URLSearchParams(window.location.search);
-      const currentLang = urlParams.get('lang') || (storedLang || 'en');
-      // If URL has no lang but localStorage has one, redirect to add it
-      if (!urlParams.has('lang') && storedLang) {
-        window.location.search = '?lang=' + storedLang;
-        return;
-      }
-      // Update localStorage when user clicks language button
       const btn = document.getElementById('lang-btn');
-      if (btn) {
-        btn.addEventListener('click', () => {
-          const newLang = currentLang === 'en' ? 'zh-TW' : 'en';
-          localStorage.setItem('lang', newLang);
-          window.location.search = '?lang=' + newLang;
+      const dropdown = document.getElementById('lang-dropdown');
+
+      function switchLang(lang) {
+        // Write cookie (expires in 1 year)
+        const expires = new Date();
+        expires.setFullYear(expires.getFullYear() + 1);
+        document.cookie = 'sbale_lang=' + lang + '; expires=' + expires.toUTCString() + '; path=/; SameSite=Lax';
+        // Add URL param and reload
+        const url = new URL(window.location);
+        url.searchParams.set('lang', lang);
+        window.location.href = url.toString();
+      }
+
+      if (btn && dropdown) {
+        // Toggle dropdown
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          dropdown.classList.toggle('hidden');
+        });
+
+        // Click outside to close
+        document.addEventListener('click', () => {
+          dropdown.classList.add('hidden');
+        });
+
+        // Language selection
+        dropdown.querySelectorAll('a[data-lang]').forEach(link => {
+          link.addEventListener('click', (e) => {
+            e.preventDefault();
+            const lang = e.target.getAttribute('data-lang');
+            switchLang(lang);
+          });
         });
       }
     })();
