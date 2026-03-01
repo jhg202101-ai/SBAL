@@ -2,7 +2,7 @@
 
 > **Industrial-grade Cloudflare Workers + Stripe integration for SaaS billing**
 
-SBAL 是一個專為 SaaS 設計的訂閱與計費引擎，將 Stripe 的複雜性抽象為簡單的 API。核心特色：**模組化架構**、**極致成本控制**（Token 消耗降低 40%）、**零白姦安全邏輯**（先付費，後啟用）。
+SBAL 是一個專為 SaaS 設計的訂閱與計費引擎，將 Stripe 的複雜性抽象為簡單的 API。核心特色：**模組化架構**、**極致成本控制**（Token 消耗降低 40%）、**零白嫖安全邏輯**（先付費，後啟用）。
 
 ---
 
