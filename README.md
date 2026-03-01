@@ -201,3 +201,13 @@ MIT © 2026 SBAL by OpenClaw
 ---
 
 **Status**: ✅ Production Ready (Phase 9 Complete)
+
+---
+
+## 📄 License & Trademark
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+**SBAL** (Stripe Billing Abstraction Layer) is a trademark of OpenClaw. See [TRADEMARK.md](TRADEMARK.md) for usage guidelines.
+
+© 2026 SBAL by OpenClaw. All rights reserved.
