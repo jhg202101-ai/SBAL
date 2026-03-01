@@ -7,7 +7,8 @@ import { cors } from 'hono/cors';
 import { v4 as uuidv4 } from 'uuid';
 import Stripe from 'stripe';
 
-// Template imports (to reduce main file size)
+// i18n support
+import { getLocale, t, interpolate } from './i18n.js';
 import landingPageTemplate from './templates/landing-page.js';
 import docsTemplate from './templates/docs.js';
 
@@ -117,11 +118,14 @@ app.use('*', async (c, next) => {
   }
 });
 
-// Public Health or Landing Page
+// Public Health or Landing Page (with i18n)
 app.get('/', async (c) => {
   const accept = c.req.header('Accept') || '';
-  // Return HTML landing page for browsers, JSON for monitors
-  if (accept.includes('text/html')) { return new Response(landingPageTemplate, { headers: { 'Content-Type': 'text/html; charset=UTF-8' } }); }
+  if (accept.includes('text/html')) {
+    const locale = getLocale(c.req);
+    const html = landingPageTemplate(locale, (key, params) => t(locale, key, params));
+    return new Response(html, { headers: { 'Content-Type': 'text/html; charset=UTF-8' } });
+  }
   // JSON health response for monitors
   const checks = { status: 'ok', service: 'SBAL', timestamp: new Date().toISOString() };
   try {
@@ -194,9 +198,11 @@ app.get('/api/v1/quickcheck', async (c) => {
   return new Response(html, { headers: { 'Content-Type': 'text/html; charset=UTF-8' }});
 });
 
-// Documentation Page (/docs)
+// Documentation Page (/docs, i18n)
 app.get('/docs', (c) => {
-  return new Response(docsTemplate, { headers: { 'Content-Type': 'text/html; charset=UTF-8' }});
+  const locale = getLocale(c.req);
+  const html = docsTemplate(locale, (key, params) => t(locale, key, params));
+  return new Response(html, { headers: { 'Content-Type': 'text/html; charset=UTF-8' }});
 });
 
 // ============================================
@@ -675,13 +681,33 @@ app.post('/checkout', async (c) => {
 // GET /success - Payment success page (displays API key only after verification)
 app.get('/success', async (c) => {
   const { session_id } = c.req.query();
+  const locale = getLocale(c.req);
+  // Localized strings (fallback to en)
+  const missingSessionTitle = locale === 'zh-TW' ? '缺少 session ID' : 'Missing session ID';
+  const missingSessionMsg = locale === 'zh-TW' ? '請聯繫支援團隊' : 'Please contact support if this problem persists.';
+  const pendingTitle = t(locale, 'pending.title');
+  const pendingMsg = t(locale, 'pending.message');
+  const pendingCloseHint = t(locale, 'pending.closeHint');
+  const pendingBackHome = t(locale, 'pending.backToHome');
+  const finalizingTitle = t(locale, 'finalizing.title');
+  const finalizingMsg = t(locale, 'finalizing.message');
+  const finalizingWaitHint = t(locale, 'finalizing.waitHint');
+  const finalizingRefresh = t(locale, 'finalizing.refresh');
+  const successTitle = t(locale, 'success.title');
+  const successWelcome = (email) => t(locale, 'success.welcome', { email });
+  const successApiKeyLabel = t(locale, 'success.apiKeyLabel');
+  const successApiKeyHint = t(locale, 'success.apiKeyHint');
+  const successReadDocs = t(locale, 'success.readDocs');
+  const successBackHome = t(locale, 'success.backHome');
+  const successNeedHelp = t(locale, 'success.needHelp');
+
   if (!session_id) {
     return c.html(`<!DOCTYPE html>
-<html>
+<html lang="${locale}">
 <head><title>Error</title></head>
 <body>
-  <h1>Missing session ID</h1>
-  <p>Please contact support if this problem persists.</p>
+  <h1>${missingSessionTitle}</h1>
+  <p>${missingSessionMsg}</p>
 </body>
 </html>`);
   }
@@ -693,22 +719,21 @@ app.get('/success', async (c) => {
 
     // Verify payment status
     if (session.payment_status !== 'paid') {
-      const pendingHtml = `
-<!DOCTYPE html>
-<html lang="en">
+      const pendingHtml = `<!DOCTYPE html>
+<html lang="${locale}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Payment Pending - SBAL</title>
+  <title>${pendingTitle}</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-yellow-50 min-h-screen flex items-center justify-center p-4">
   <div class="bg-white rounded-xl shadow-lg max-w-lg w-full p-8 text-center">
     <div class="text-5xl mb-4">⏳</div>
-    <h1 class="text-2xl font-bold text-gray-800 mb-2">Payment in Progress</h1>
-    <p class="text-gray-600 mb-6">Your payment is being processed. API key will be available once payment is confirmed.</p>
-    <p class="text-sm text-gray-500 mb-4">You can close this page and return later.</p>
-    <a href="/" class="text-blue-600 hover:underline">Back to Home</a>
+    <h1 class="text-2xl font-bold text-gray-800 mb-2">${pendingTitle}</h1>
+    <p class="text-gray-600 mb-6">${pendingMsg}</p>
+    <p class="text-sm text-gray-500 mb-4">${pendingCloseHint}</p>
+    <a href="/" class="text-blue-600 hover:underline">${pendingBackHome}</a>
   </div>
 </body>
 </html>`;
@@ -733,22 +758,21 @@ app.get('/success', async (c) => {
 
     // Ensure API key exists (must have been set by webhook)
     if (!customer.api_key) {
-      const processingHtml = `
-<!DOCTYPE html>
-<html lang="en">
+      const processingHtml = `<!DOCTYPE html>
+<html lang="${locale}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Provisioning - SBAL</title>
+  <title>${finalizingTitle}</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-blue-50 min-h-screen flex items-center justify-center p-4">
   <div class="bg-white rounded-xl shadow-lg max-w-lg w-full p-8 text-center">
     <div class="text-5xl mb-4">🔐</div>
-    <h1 class="text-2xl font-bold text-gray-800 mb-2">Finalizing Setup</h1>
-    <p class="text-gray-600 mb-6">Your payment was successful! We're generating your secure API key. This usually takes a few seconds.</p>
-    <p class="text-sm text-gray-500 mb-4">Please wait or refresh this page in a moment.</p>
-    <button onclick="location.reload()" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700">Refresh</button>
+    <h1 class="text-2xl font-bold text-gray-800 mb-2">${finalizingTitle}</h1>
+    <p class="text-gray-600 mb-6">${finalizingMsg}</p>
+    <p class="text-sm text-gray-500 mb-4">${finalizingWaitHint}</p>
+    <button onclick="location.reload()" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700">${finalizingRefresh}</button>
   </div>
 </body>
 </html>`;
@@ -756,52 +780,49 @@ app.get('/success', async (c) => {
     }
 
     // Render success page with API key
-    const html = `
-<!DOCTYPE html>
-<html lang="en">
+    const html = `<!DOCTYPE html>
+<html lang="${locale}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Welcome to SBAL!</title>
+  <title>${successTitle}</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gradient-to-br from-green-50 to-blue-50 min-h-screen flex items-center justify-center p-4">
   <div class="bg-white rounded-xl shadow-lg max-w-lg w-full p-8 text-center">
     <div class="text-5xl mb-4">🎉</div>
-    <h1 class="text-3xl font-bold text-gray-800 mb-2">Subscription Activated!</h1>
-    <p class="text-gray-600 mb-6">Welcome to SBAL, <strong>${customer.email}</strong>! Your payment was successful.</p>
-    
+    <h1 class="text-3xl font-bold text-gray-800 mb-2">${successTitle}</h1>
+    <p class="text-gray-600 mb-6">${successWelcome(customer.email)}</p>
+
     <div class="bg-gray-100 rounded-lg p-4 mb-6 text-left">
-      <p class="text-sm text-gray-500 mb-1">Your API Key</p>
+      <p class="text-sm text-gray-500 mb-1">${successApiKeyLabel}</p>
       <code class="text-lg font-mono break-all">${customer.api_key}</code>
-      <p class="text-xs text-gray-500 mt-2">Keep this secret. Include it as: <code>Authorization: Bearer &lt;key&gt;</code></p>
+      <p class="text-xs text-gray-500 mt-2">${successApiKeyHint}</p>
     </div>
 
     <div class="space-y-3">
-      <a href="/docs" class="block bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700">Read Documentation</a>
-      <a href="/" class="block border border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-50">Back to Home</a>
+      <a href="/docs" class="block bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700">${successReadDocs}</a>
+      <a href="/" class="block border border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-50">${successBackHome}</a>
     </div>
 
-    <p class="mt-6 text-xs text-gray-400">
-      Need help? Contact support@sbal.example.com
-    </p>
+    <p class="mt-6 text-xs text-gray-400">${successNeedHelp}</p>
   </div>
 </body>
 </html>`;
     return new Response(html, { headers: { 'Content-Type': 'text/html; charset=UTF-8' }});
   } catch (e) {
     console.error('/success error:', e);
+    const errorTitle = locale === 'zh-TW' ? '無法驗證付款' : 'Unable to verify payment';
     return c.html(`<!DOCTYPE html>
 <html>
-<head><title>Error</title></head>
+<head><title>${errorTitle}</title></head>
 <body>
-  <h1>Unable to verify payment</h1>
+  <h1>${errorTitle}</h1>
   <p>Error: ${e.message}</p>
   <p>Please contact support.</p>
 </body>
 </html>`);
   }
 });
-
 
 export default app;

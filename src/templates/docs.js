@@ -1,10 +1,11 @@
-// Documentation page HTML template
-const template = `<!DOCTYPE html>
-<html lang="en">
+// Documentation page template with i18n support
+export default function docsTemplate(locale, t) {
+  return `<!DOCTYPE html>
+<html lang="${locale}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SBAL Documentation</title>
+  <title>SBAL ${t('nav.docs')}</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-50 text-gray-900">
@@ -12,15 +13,16 @@ const template = `<!DOCTYPE html>
     <div class="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
       <div class="text-2xl font-bold text-blue-600">SBAL</div>
       <div class="space-x-6">
-        <a href="/" class="text-gray-600 hover:text-blue-600">Home</a>
-        <a href="/docs" class="text-blue-600 font-semibold">Documentation</a>
-        <a href="/admin" class="text-gray-600 hover:text-blue-600">Admin</a>
+        <a href="/" class="text-gray-600 hover:text-blue-600">${t('nav.home')}</a>
+        <a href="/docs" class="text-blue-600 font-semibold">${t('nav.docs')}</a>
+        <a href="/admin" class="text-gray-600 hover:text-blue-600">${t('nav.admin')}</a>
+        <button id="lang-btn" class="text-gray-600 hover:text-blue-600">${t('language')}</button>
       </div>
     </div>
   </nav>
 
   <main class="max-w-6xl mx-auto px-4 py-12">
-    <h1 class="text-4xl font-bold mb-8">SBAL Documentation</h1>
+    <h1 class="text-4xl font-bold mb-8">${t('nav.docs')}</h1>
 
     <section class="mb-12">
       <h2 class="text-2xl font-bold mb-4">QuickStart</h2>
@@ -66,7 +68,7 @@ Content-Type: application/json
     <section class="mb-12">
       <h2 class="text-2xl font-bold mb-4">Customer Support Guide</h2>
       <div class="prose max-w-none text-gray-800">
-        <p>Use the <a href="/admin" class="text-blue-600 hover:underline">Admin Dashboard</a> to:</p>
+        <p>Use the <a href="/admin" class="text-blue-600 hover:underline">${t('nav.admin')}</a> to:</p>
         <ul class="list-disc pl-6 space-y-2">
           <li>View recent customers and their API keys</li>
           <li>Copy pre-generated payment links for any tier (Base, Growth, Enterprise)</li>
@@ -87,6 +89,15 @@ Content-Type: application/json
       <p>© ${new Date().getFullYear()} SBAL by OpenClaw. All rights reserved.</p>
     </div>
   </footer>
+
+  <script>
+    // Language switcher
+    document.getElementById('lang-btn')?.addEventListener('click', () => {
+      const current = new URLSearchParams(window.location.search).get('lang') || 'en';
+      const next = current === 'en' ? 'zh-TW' : 'en';
+      window.location.search = '?lang=' + next;
+    });
+  </script>
 </body>
 </html>`;
-export default template;
+}
