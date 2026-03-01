@@ -1,0 +1,14 @@
+{
+  "SBAL Base": {
+    "product_id": "prod_U3yYfofIlxCxBZ",
+    "price_id": "price_1T66b5I7EezoPqOFTTLN2kDy"
+  },
+  "SBAL Growth": {
+    "product_id": "prod_U3yY3lmHbe4COQ",
+    "price_id": "price_1T66b5I7EezoPqOFOEO5PxNX"
+  },
+  "SBAL Enterprise": {
+    "product_id": "prod_U3yYfoqQz4HWGk",
+    "price_id": "price_1T66b6I7EezoPqOF7CWWQQAa"
+  }
+}
