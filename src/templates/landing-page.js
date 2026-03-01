@@ -125,14 +125,23 @@ export default function landingPageTemplate(locale, t) {
   </div>
 
   <script>
-    // Language switcher
+    // Language persistence: auto-switch based on localStorage
     (function() {
+      const storedLang = localStorage.getItem('lang');
+      const urlParams = new URLSearchParams(window.location.search);
+      const currentLang = urlParams.get('lang') || (storedLang || 'en');
+      // If URL has no lang but localStorage has one, redirect to add it
+      if (!urlParams.has('lang') && storedLang) {
+        window.location.search = '?lang=' + storedLang;
+        return;
+      }
+      // Update localStorage when user clicks language button
       const btn = document.getElementById('lang-btn');
       if (btn) {
         btn.addEventListener('click', () => {
-          const current = new URLSearchParams(window.location.search).get('lang') || 'en';
-          const next = current === 'en' ? 'zh-TW' : 'en';
-          window.location.search = '?lang=' + next;
+          const newLang = currentLang === 'en' ? 'zh-TW' : 'en';
+          localStorage.setItem('lang', newLang);
+          window.location.search = '?lang=' + newLang;
         });
       }
     })();
